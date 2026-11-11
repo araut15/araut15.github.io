@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ankit · Payments, Decoded</title>
+<meta name="description" content="Plain-language explainers and interactive tools on how payments work, by Ankit.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+<style>
+:root {
+  --bg: #f2f5f3; --surface: #ffffff; --ink: #16211c; --muted: #56645d; --rule: #d5ddd8;
+  --accent: #1d5e48; --accent-soft: #e2efe9;
+  --font-display: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1613; --surface: #17211d; --ink: #e6eeea; --muted: #9aaba3; --rule: #2b3833;
+    --accent: #6cc3a0; --accent-soft: #1d3329; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.6;
+  padding: 48px max(16px, env(safe-area-inset-right, 0px)) 40px max(16px, env(safe-area-inset-left, 0px));
+}
+.wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+.eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(34px, 6vw, 52px); line-height: 1.1; margin: 8px 0 16px; }
+.intro p { margin: 0 0 12px; max-width: 62ch; }
+.intro .lede { font-size: 19px; }
+.intro .muted { color: var(--muted); }
+h2 { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin: 0 0 12px; }
+.feature {
+  display: block; text-decoration: none; color: inherit; background: var(--surface); border: 1px solid var(--rule);
+  border-radius: 12px; padding: 22px 24px; transition: border-color .2s ease;
+}
+.feature:hover, .feature:focus-visible { border-color: var(--accent); outline: none; }
+.feature .tag { display: inline-block; font-family: var(--font-num); font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.feature h3 { font-family: var(--font-display); font-size: 24px; font-weight: 600; margin: 12px 0 6px; }
+.feature p { margin: 0; color: var(--muted); }
+.feature .go { margin-top: 14px; font-weight: 600; color: var(--accent); }
+ol.series { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); counter-reset: n; }
+ol.series li { border-bottom: 1px solid var(--rule); counter-increment: n; }
+ol.series a { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 4px 12px; padding: 16px 4px; text-decoration: none; color: inherit; }
+ol.series a::before { content: counter(n, decimal-leading-zero); font-family: var(--font-num); color: var(--accent); grid-row: span 2; padding-top: 2px; }
+ol.series a:hover .t, ol.series a:focus-visible .t { color: var(--accent); }
+ol.series .t { font-weight: 600; }
+ol.series .d { color: var(--muted); font-size: 15px; }
+.links { display: flex; flex-wrap: wrap; gap: 10px; }
+.links a {
+  font-weight: 600; font-size: 15px; text-decoration: none; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--rule); border-radius: 8px; padding: 10px 18px;
+}
+.links a.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.race { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 22px 24px; display: flex; flex-direction: column; gap: 18px; }
+.race h2 { margin: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chips button {
+  font: inherit; font-size: 14px; font-weight: 500; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--rule); border-radius: 999px; padding: 7px 14px; cursor: pointer;
+}
+.chips button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.chips button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.track { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.line { position: relative; height: 2px; background: var(--rule); }
+.coin {
+  position: absolute; top: 50%; left: 0; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 0 5px var(--accent-soft);
+}
+.result { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.result .time { font-family: var(--font-num); font-size: 15px; color: var(--accent); background: var(--accent-soft); padding: 3px 10px; border-radius: 999px; }
+.result .note { color: var(--muted); font-size: 15px; }
+.race .small { font-size: 12px; color: var(--muted); margin: 0; }
+footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule); padding-top: 14px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <section class="intro">
+    <div class="eyebrow">Payments, Decoded</div>
+    <h1>Hi, I'm Ankit.</h1>
+    <p class="lede">I'm a payment product management professional, passionate about technology, AI and how money moves.</p>
+    <p class="muted">I write <em>Payments, Decoded</em>, a beginner-friendly series that explains the systems behind everyday payments in plain language, and I build small interactive tools so you can see them work. Always learning, always building.</p>
+  </section>
+
+  <section class="race" aria-labelledby="race-h">
+    <h2 id="race-h">How fast does money move? Pick a rail</h2>
+    <div class="chips" id="chips" role="group" aria-label="Payment rails"></div>
+    <div class="track" aria-hidden="true"><span>Payer</span><div class="line"><div class="coin" id="coin"></div></div><span>Payee</span></div>
+    <div class="result" aria-live="polite"><span class="time" id="time"></span><span class="note" id="note"></span></div>
+    <p class="small">Typical U.S. timings, simplified. The animation is not to scale.</p>
+  </section>
+
+  <section class="links">
+    <a class="primary" href="https://medium.com/@ankitraut">Read on Medium</a>
+  </section>
+
+  <footer>© 2026 Ankit</footer>
+</main>
+<script>
+const rails = [
+  { name: "RTP / FedNow", time: "Seconds, 24/7", note: "Instant payments settle in seconds, even on weekends.", ms: 500 },
+  { name: "Card", time: "Seconds, then 1–2 days", note: "Approved in seconds; the merchant is paid a day or two later.", ms: 2200 },
+  { name: "Wire", time: "Same day", note: "Final and fast, but only while the system is open.", ms: 1400 },
+  { name: "ACH", time: "Same day to 2 days", note: "The workhorse behind payroll and bills, moving in batches.", ms: 2600 },
+  { name: "Cross-border (SWIFT)", time: "Minutes to days", note: "Depends on how many banks sit in the chain.", ms: 3000 },
+  { name: "Check", time: "A few days", note: "Paper, deposited, then cleared between banks.", ms: 3600 }
+];
+const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const coin = document.getElementById("coin"), chips = document.getElementById("chips");
+let anim = null;
+function run(i) {
+  const r = rails[i];
+  chips.querySelectorAll("button").forEach((b, j) => b.setAttribute("aria-pressed", j === i ? "true" : "false"));
+  document.getElementById("time").textContent = r.time;
+  document.getElementById("note").textContent = r.note;
+  if (anim) anim.cancel();
+  if (reduce || !coin.animate) { coin.style.left = "100%"; return; }
+  anim = coin.animate([{ left: "0%" }, { left: "100%" }], { duration: r.ms, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" });
+}
+rails.forEach((r, i) => {
+  const b = document.createElement("button");
+  b.type = "button"; b.textContent = r.name;
+  b.addEventListener("click", () => run(i));
+  chips.appendChild(b);
+});
+run(1);
+</script>
+</body>
+</html>
