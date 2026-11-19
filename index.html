@@ -108,6 +108,15 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .chat-foot { padding: 0 22px 16px; font-size: 12px; color: var(--muted); margin: -6px 0 0; }
 @media (max-width: 560px) { .log, .chat-head, .ask { padding-left: 16px; padding-right: 16px; } .chat-foot { padding: 0 16px 14px; } .msg { max-width: 94%; } }
 @media (prefers-reduced-motion: reduce) { .typing span { animation: none; opacity: .6; } .log { scroll-behavior: auto; } }
+/* Tools */
+.tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.tools .feature { display: flex; flex-direction: column; }
+.tools .feature p { flex: 1; }
+.tools .feature .tag { align-self: flex-start; }
+.tools .feature .meta { margin-top: 10px; font-size: 13px; color: var(--muted); }
+@media (max-width: 640px) { .tools { grid-template-columns: minmax(0, 1fr); } }
+.msg .try { display: inline-block; margin: 10px 0 0 6px; font-size: 12px; font-weight: 600; color: var(--bg); background: var(--accent); padding: 3px 9px; border-radius: 999px; text-decoration: none; }
+.msg .try:hover { text-decoration: underline; }
 footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule); padding-top: 14px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -133,6 +142,26 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule)
       <button type="submit">Ask</button>
     </form>
     <p class="chat-foot">Plain-language explainers, not financial or legal advice.</p>
+  </section>
+
+  <section aria-labelledby="tools-h">
+    <h2 id="tools-h">Try the tools</h2>
+    <div class="tools">
+      <a class="feature" href="/Follow-the-Money/">
+        <span class="tag">Interactive</span>
+        <h3>Follow the Money</h3>
+        <p>Step through a $50 purchase on credit, debit, prepaid, corporate and virtual cards, and see exactly where the money sits at every moment.</p>
+        <div class="meta">Goes with: Credit, Debit and Prepaid</div>
+        <div class="go">Open the explorer →</div>
+      </a>
+      <a class="feature" href="/token-explorer/">
+        <span class="tag">Interactive</span>
+        <h3>Token Explorer</h3>
+        <p>Add a card to a phone, tap to pay, try to steal the token and lose your phone, and see who can see your real card number.</p>
+        <div class="meta">Goes with: Tap to Pay</div>
+        <div class="go">Open the explorer →</div>
+      </a>
+    </div>
   </section>
 
   <section class="race" aria-labelledby="race-h">
@@ -188,6 +217,12 @@ const ART = {
   tap: "Tap to Pay: Digital Wallets and Tokens",
   about: "About this site"
 };
+const TOOLS = {
+  ftm: { name: "Follow the Money", href: "/Follow-the-Money/" },
+  tok: { name: "Token Explorer", href: "/token-explorer/" }
+};
+const TOOL_FOR = { cdp: "ftm", debit: "ftm", holds: "ftm", fbo: "ftm", synapse: "ftm", funding: "ftm", jit: "ftm", virtual: "ftm",
+  token: "tok", tapflow: "tok", stolen: "tok", lostphone: "tok", networktoken: "tok" };
 const KB = [
   // ---- Payments 101 ----
   { id: "blocks", art: "p101", q: "What are the building blocks of every payment?",
@@ -374,10 +409,14 @@ const KB = [
     k: ["who are you", "who wrote", "author", "ankit", "about", "who is this"],
     a: ["Payments, Decoded is written by Ankit, a payment product management professional who's passionate about technology, AI and how money moves. The series explains the systems behind everyday payments in plain language, for anyone new to payments."],
     rel: ["topics", "blocks", "cdp"] },
+  { id: "tools", art: "about", q: "What interactive tools do you have?",
+    k: ["tools", "tool", "explorer", "explorers", "interactive", "simulator", "follow the money", "token explorer", "demo", "play"],
+    a: ["Two so far. Follow the Money walks one $50 purchase through credit, debit, prepaid, corporate and virtual cards and shows where the money sits at each step. The Token Explorer lets you add a card to a phone, tap to pay, try to steal the token and lose your phone, showing who can see your real card number.", "You'll find both under \"Try the tools\" on this page."],
+    rel: ["fbo", "token", "funding"] },
   { id: "topics", art: "about", q: "What can I ask you?",
     k: ["help", "what can you do", "what can i ask", "topics", "hello", "hi", "hey", "articles", "list"],
-    a: ["I answer from four articles: Payments 101 (cards, checks, ACH, wires, RTP and FedNow, Zelle, SWIFT), Cards, End to End (who's involved, authorization to funding, fees, 3-D Secure, chargebacks), Credit, Debit and Prepaid (whose money it is, pooled accounts, Synapse, funding models) and Tap to Pay (wallets and tokens).", "Try one of the questions below, or type your own."],
-    rel: ["blocks", "lifecycle", "token"] }
+    a: ["I answer from four articles: Payments 101 (cards, checks, ACH, wires, RTP and FedNow, Zelle, SWIFT), Cards, End to End (who's involved, authorization to funding, fees, 3-D Secure, chargebacks), Credit, Debit and Prepaid (whose money it is, pooled accounts, Synapse, funding models) and Tap to Pay (wallets and tokens).", "There are also two interactive tools on this page: Follow the Money and the Token Explorer. Try one of the questions below, or type your own."],
+    rel: ["blocks", "lifecycle", "tools"] }
 ];
 
 const STOP = new Set("a an the is are was were be been do does did i my me you your we our it its of to in on at for from by with and or but how what why when where who which can could should would will this that these those there their they them about into than then so if as not no yes vs versus get got".split(" "));
@@ -426,6 +465,11 @@ function answer(e) {
     if (e.art !== "about") {
       const s = document.createElement("a"); s.className = "src"; s.href = MEDIUM; s.target = "_blank"; s.rel = "noopener";
       s.textContent = "From: " + ART[e.art] + " →"; m.appendChild(s);
+    }
+    const tool = TOOLS[TOOL_FOR[e.id]];
+    if (tool) {
+      const t = document.createElement("a"); t.className = "try"; t.href = tool.href;
+      t.textContent = "Try it: " + tool.name + " →"; m.appendChild(t);
     }
     addChips(m, e.rel, "Related questions");
   });
