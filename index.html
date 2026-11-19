@@ -118,6 +118,20 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .msg .try { display: inline-block; margin: 10px 0 0 6px; font-size: 12px; font-weight: 600; color: var(--bg); background: var(--accent); padding: 3px 9px; border-radius: 999px; text-decoration: none; }
 .msg .try:hover { text-decoration: underline; }
 footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule); padding-top: 14px; }
+@media (max-width: 560px) {
+  body { padding-top: 28px; }
+  .wrap { gap: 28px; }
+  h1 { font-size: 34px; }
+  .intro .lede { font-size: 17px; }
+  .log { max-height: min(460px, 62vh); }
+  .suggest { padding: 10px 14px; font-size: 14px; }
+  .msg .src, .msg .try { padding: 7px 11px; font-size: 13px; }
+  .msg .try { margin-left: 0; }
+  .ask button { min-height: 46px; }
+  .chips button { min-height: 44px; }
+  .links a { display: block; width: 100%; text-align: center; padding: 14px 18px; }
+  .tools .feature { padding: 18px; }
+}
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -496,6 +510,11 @@ function ask(text, forced) {
     else if (!r.length || r[0].s < 3) noMatch(text);
     else answer(r[0].e);
     log.scrollTop = mine.offsetTop - 12;
+    if (window.matchMedia("(pointer: coarse)").matches) {
+      input.blur();
+      const top = log.getBoundingClientRect().top;
+      if (top < 0 || top > window.innerHeight * 0.5) log.scrollIntoView({ block: "start", behavior: reduceMotion ? "auto" : "smooth" });
+    }
   }, reduceMotion ? 0 : 450);
 }
 form.addEventListener("submit", ev => { ev.preventDefault(); const v = input.value; input.value = ""; ask(v); });
