@@ -75,6 +75,39 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .result .time { font-family: var(--font-num); font-size: 15px; color: var(--accent); background: var(--accent-soft); padding: 3px 10px; border-radius: 999px; }
 .result .note { color: var(--muted); font-size: 15px; }
 .race .small { font-size: 12px; color: var(--muted); margin: 0; }
+/* Ask the series: a chat that answers only from the articles */
+.chat { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; }
+.chat-head { padding: 18px 22px 14px; border-bottom: 1px solid var(--rule); }
+.chat-head h2 { margin: 0 0 4px; }
+.chat-head p { margin: 0; color: var(--muted); font-size: 14px; }
+.log { position: relative; padding: 18px 22px; display: flex; flex-direction: column; gap: 14px; max-height: 460px; min-height: 240px; overflow-y: auto; scroll-behavior: smooth; }
+.msg { max-width: 88%; padding: 12px 14px; border-radius: 12px; font-size: 15px; line-height: 1.55; overflow-wrap: anywhere; }
+.msg p { margin: 0 0 8px; } .msg p:last-child { margin-bottom: 0; }
+.msg.bot { align-self: flex-start; background: var(--bg); border: 1px solid var(--rule); border-top-left-radius: 4px; }
+.msg.me { align-self: flex-end; background: var(--accent); color: var(--bg); border-top-right-radius: 4px; }
+.msg .src { display: inline-block; margin-top: 10px; font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 3px 9px; border-radius: 999px; text-decoration: none; }
+.msg .src:hover { text-decoration: underline; }
+.msg .rel { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.msg .rel-label { width: 100%; font-size: 12px; color: var(--muted); }
+.suggest {
+  font: inherit; font-size: 13px; color: var(--ink); background: var(--surface); border: 1px solid var(--rule);
+  border-radius: 999px; padding: 5px 12px; cursor: pointer; text-align: left;
+}
+.suggest:hover { border-color: var(--accent); }
+.suggest:focus-visible, .ask button:focus-visible, .ask input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.typing { display: inline-flex; gap: 4px; padding: 4px 0; }
+.typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: blink 1s infinite ease-in-out; }
+.typing span:nth-child(2) { animation-delay: .15s; } .typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+.ask { display: flex; gap: 8px; padding: 14px 22px 18px; border-top: 1px solid var(--rule); }
+.ask input {
+  flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px;
+}
+.ask button { font: inherit; font-weight: 600; font-size: 15px; border: 0; border-radius: 8px; padding: 10px 18px; background: var(--accent); color: var(--bg); cursor: pointer; }
+.chat-foot { padding: 0 22px 16px; font-size: 12px; color: var(--muted); margin: -6px 0 0; }
+@media (max-width: 560px) { .log, .chat-head, .ask { padding-left: 16px; padding-right: 16px; } .chat-foot { padding: 0 16px 14px; } .msg { max-width: 94%; } }
+@media (prefers-reduced-motion: reduce) { .typing span { animation: none; opacity: .6; } .log { scroll-behavior: auto; } }
 footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule); padding-top: 14px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -86,6 +119,20 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule)
     <h1>Hi, I'm Ankit.</h1>
     <p class="lede">I'm a payment product management professional, passionate about technology, AI and how money moves.</p>
     <p class="muted">I write <em>Payments, Decoded</em>, a beginner-friendly series that explains the systems behind everyday payments in plain language, and I build small interactive tools so you can see them work. Always learning, always building.</p>
+  </section>
+
+  <section class="chat" aria-labelledby="chat-h">
+    <div class="chat-head">
+      <h2 id="chat-h">Ask the series</h2>
+      <p>Ask a question about payments. Answers come only from my Payments, Decoded articles.</p>
+    </div>
+    <div class="log" id="log" aria-live="polite"></div>
+    <form class="ask" id="ask" autocomplete="off">
+      <label for="q" class="sr" style="position:absolute;left:-9999px">Your question</label>
+      <input id="q" name="q" type="text" placeholder="e.g. How does Zelle work?" maxlength="200">
+      <button type="submit">Ask</button>
+    </form>
+    <p class="chat-foot">Plain-language explainers, not financial or legal advice.</p>
   </section>
 
   <section class="race" aria-labelledby="race-h">
@@ -130,6 +177,291 @@ rails.forEach((r, i) => {
   chips.appendChild(b);
 });
 run(1);
+</script>
+<script>
+/* ---------- Ask the series: answers come only from this knowledge base ---------- */
+const MEDIUM = "https://medium.com/@ankitraut";
+const ART = {
+  p101: "Payments 101: How Money Actually Moves",
+  cards: "Cards, End to End",
+  whose: "Credit, Debit and Prepaid: Whose Money Is It?",
+  tap: "Tap to Pay: Digital Wallets and Tokens",
+  about: "About this site"
+};
+const KB = [
+  // ---- Payments 101 ----
+  { id: "blocks", art: "p101", q: "What are the building blocks of every payment?",
+    k: ["building blocks", "basics", "how do payments work", "how money moves", "parts of a payment", "payment basics"],
+    a: ["Every payment, from a paper check to a stablecoin, has the same five parts: the payer and payee, their banks, the rail or network that carries the message, clearing (working out who owes whom) and settlement (the money actually moving between banks).", "Once you can spot those five parts, any new payment method gets easier to understand."],
+    rel: ["clearing", "pushpull", "compare"] },
+  { id: "clearing", art: "p101", q: "What's the difference between clearing and settlement?",
+    k: ["clearing", "settlement", "settle", "clear", "difference clearing settlement"],
+    a: ["Clearing is exchanging the payment details and working out who owes whom. It's the instruction, not the money. Settlement is when the money actually moves between the banks, usually through their accounts at the central bank.", "The gap between the two explains most differences between payment methods: cards approve in seconds but settle a day or two later, ACH settles in batches, and instant rails like FedNow clear and settle together in seconds."],
+    rel: ["blocks", "lifecycle", "instant"] },
+  { id: "pushpull", art: "p101", q: "What's a push payment vs. a pull payment?",
+    k: ["push", "pull", "push payment", "pull payment", "reverse", "reversible", "get money back"],
+    a: ["A push payment is sent by the payer, like a wire or Zelle. A pull payment is taken by the payee with your permission, like a card charge or an ACH debit for your gym membership.", "Pull payments usually come with more dispute rights. Push payments are usually final, which is why scams target them."],
+    rel: ["chargeback", "zelle", "wire"] },
+  { id: "ach", art: "p101", q: "How does ACH work?",
+    k: ["ach", "direct deposit", "payroll", "nacha", "autopay", "bank transfer", "same day ach", "batch"],
+    a: ["ACH is a batch system. Banks collect payment instructions during the day, bundle them into files and send them to an ACH operator, either the Federal Reserve (FedACH) or The Clearing House (EPN). Settlement happens at set times, not one payment at a time.", "Standard ACH usually arrives the next business day. Same Day ACH settles within hours for payments up to $1 million each, and Nacha members have approved raising that to $10 million. ACH doesn't run on weekends or bank holidays. Nacha, a nonprofit, writes the rules."],
+    rel: ["instant", "wire", "compare"] },
+  { id: "wire", art: "p101", q: "What is a wire transfer and Fedwire?",
+    k: ["wire", "wire transfer", "fedwire", "chips", "rtgs", "real-time gross settlement", "house purchase"],
+    a: ["A domestic wire travels over Fedwire, run by the Federal Reserve, or CHIPS, run by The Clearing House. Fedwire is a real-time gross settlement system: each payment settles on its own, immediately, in central bank money.", "Wires usually take minutes on business days, are generally final once sent, and often cost consumers $15 to $50. Fedwire switched to the ISO 20022 message format in July 2025."],
+    rel: ["iso", "instant", "pushpull"] },
+  { id: "instant", art: "p101", q: "What's the difference between RTP and FedNow?",
+    k: ["rtp", "fednow", "instant", "instant payments", "real time payments", "24/7", "the clearing house", "request for payment"],
+    a: ["Both are U.S. instant payment rails that move money between bank accounts in seconds, 24/7, with final settlement. RTP is run by The Clearing House, owned by large banks, and launched in November 2017. FedNow is run by the Federal Reserve and launched in July 2023.", "Both allow up to $10 million per payment (banks often set lower limits) and both use ISO 20022 messages. RTP settles through a joint account at the Fed; FedNow settles directly in each bank's own Fed account."],
+    rel: ["upi", "zelle", "ach"] },
+  { id: "zelle", art: "p101", q: "How does Zelle work?",
+    k: ["zelle", "early warning", "p2p", "send money to friend", "person to person"],
+    a: ["Zelle is run by Early Warning Services, a company owned by seven large U.S. banks. It lives inside your bank's app and moves money between bank accounts using just an email or phone number.", "It's mainly a directory and messaging layer: it finds the account behind that phone number and tells both banks to update balances right away, and the banks settle with each other afterward. In 2025 people sent more than $1.2 trillion through Zelle. Like a wire, a Zelle payment is fast and generally final, so scams are its biggest weakness."],
+    rel: ["venmo", "pushpull", "instant"] },
+  { id: "venmo", art: "p101", q: "How are Venmo and Cash App different from Zelle?",
+    k: ["venmo", "cash app", "paypal", "closed loop", "wallet balance", "cash out", "visa direct"],
+    a: ["Venmo, Cash App and PayPal are closed-loop wallets: money you receive sits as a balance on the company's own ledger. Adding money pulls it from your card or bank account, and instant cash-out often pushes money to your debit card over card rails, usually for a small fee.", "Zelle, by contrast, moves money directly between bank accounts. The lesson: most new payment brands sit on top of older rails, so ask what moves the money underneath."],
+    rel: ["zelle", "fbo", "wallets"] },
+  { id: "swift", art: "p101", q: "Does SWIFT actually move money?",
+    k: ["swift", "cross border", "international", "send money abroad", "correspondent", "nostro", "vostro", "gpi", "remittance"],
+    a: ["No. SWIFT is a secure messaging network, a cooperative founded in 1973 and used by more than 11,000 financial institutions. A SWIFT message is the instruction; the money moves through bank accounts.", "Abroad, a payment often hops through correspondent banks that hold accounts for each other. Each hop can add a fee, a delay and a compliance check, which is why international transfers can take days. SWIFT gpi lets banks track payments end to end, and in November 2025 SWIFT moved cross-border payment instructions to ISO 20022."],
+    rel: ["iso", "compare", "upi"] },
+  { id: "iso", art: "p101", q: "What are ISO 8583 and ISO 20022?",
+    k: ["iso 20022", "iso 8583", "iso", "message format", "message standard", "mx", "mt"],
+    a: ["They're the two message languages of payments. ISO 8583, from 1987, is the compact, fast format card networks use for authorizations, with little room for extra data.", "ISO 20022 is a richer, structured format used by SWIFT, Fedwire, RTP and FedNow. It can carry details like who is paying, why, and for which invoice."],
+    rel: ["iso8583", "swift", "wire"] },
+  { id: "checks", art: "p101", q: "How do checks work today?",
+    k: ["check", "checks", "cheque", "check 21", "check clear", "checks clear", "check clearing", "remote deposit", "bounce", "bounced check"],
+    a: ["A check is a signed paper instruction to your bank. Today the payee usually deposits it by photo, and the image travels to your bank through the Federal Reserve or a private clearing house. If there isn't enough money, it bounces.", "The Check 21 Act of 2003 let banks swap paper for images, cutting settlement to about a business day. Checks are declining because they're slow, costly and a big fraud target, and the U.S. Treasury stopped issuing most paper checks for federal payments in September 2025."],
+    rel: ["ach", "compare", "blocks"] },
+  { id: "upi", art: "p101", q: "How do UPI and Pix compare to U.S. instant payments?",
+    k: ["upi", "pix", "india", "brazil", "qr code", "rest of the world"],
+    a: ["The U.S. is late to instant payments. India's UPI (2016) and Brazil's Pix (2020), both backed by public authorities, made instant payments an everyday habit by letting people pay with a phone number or QR code for free."],
+    rel: ["instant", "zelle", "swift"] },
+  { id: "compare", art: "p101", q: "Which payment method is fastest or cheapest?",
+    k: ["fastest", "cheapest", "compare", "comparison", "best payment method", "which is best", "side by side", "speed", "cost"],
+    a: ["No single method is best. Instant rails (RTP, FedNow) and Zelle arrive in seconds but are final. Cards approve in seconds, settle in 1–2 days and can be disputed. ACH costs pennies but takes until the next business day, or hours with Same Day ACH. Wires take minutes on business days and are final. SWIFT cross-border transfers can take hours to days and usually cost the most.", "Each trades off speed, cost and protection differently, which is why they all still exist."],
+    rel: ["instant", "ach", "pushpull"] },
+
+  // ---- Cards, End to End ----
+  { id: "players", art: "cards", q: "Who is involved in a card payment?",
+    k: ["four party", "4 party", "issuer", "acquirer", "card network", "players", "who is involved", "three party", "amex", "parties"],
+    a: ["At minimum four parties: you (the cardholder), the merchant, the merchant's bank (the acquirer) and your bank (the issuer), connected by a card network such as Visa or Mastercard. American Express often acts as both network and issuer, a three-party model.", "Behind the scenes there are usually more: processors, gateways, and for many fintech cards a program manager and a sponsor bank."],
+    rel: ["progmgr", "lifecycle", "fees"] },
+  { id: "progmgr", art: "cards", q: "What is a program manager?",
+    k: ["program manager", "issuer processor", "bin sponsor", "sponsor bank", "fintech card", "baas", "banking as a service", "processor"],
+    a: ["Many fintech and branded cards aren't run by the bank whose name is on the back. A licensed bank (the sponsor bank or BIN sponsor) is the issuer of record and holds the funds, while a program manager designs and runs the program, from onboarding to customer service, and an issuer processor handles the card transactions.", "It's the part of the card world most explainers skip, and it's why one fintech app can offer a card without being a bank."],
+    rel: ["players", "fbo", "synapse"] },
+  { id: "lifecycle", art: "cards", q: "What happens after I tap my card?",
+    k: ["authorization", "clearing", "settlement", "funding", "lifecycle", "stages", "after i tap", "what happens when i pay", "hold"],
+    a: ["Four stages. Authorization takes seconds: the issuer approves and places a hold. Clearing, the same day or next, is when the merchant submits the final amount. Settlement, usually the next day, is when the issuer pays the acquirer through the network. Funding, in 1–2 business days, is when the merchant receives its sales minus fees.", "Your account shows the purchase as pending until it clears."],
+    rel: ["iso8583", "holds", "fees"] },
+  { id: "iso8583", art: "cards", q: "What's inside a card authorization message?",
+    k: ["0100", "0110", "mti", "bitmap", "data element", "response code", "00", "05", "51", "authorization message", "de 39"],
+    a: ["Card authorizations use ISO 8583. A request (message type 0100) carries a bitmap of which fields are present plus fields like the card number (DE 2), amount (DE 4), how the card was read (DE 22), merchant ID (DE 42) and chip data (DE 55).", "The reply (0110) carries an approval code (DE 38) and a response code (DE 39). Common response codes: 00 approved, 05 do not honor, 51 insufficient funds."],
+    rel: ["lifecycle", "iso", "chip"] },
+  { id: "chip", art: "cards", q: "Why are chip cards safer than the magnetic stripe?",
+    k: ["chip", "emv", "magnetic stripe", "swipe", "skimmer", "counterfeit", "contactless", "nfc", "cryptogram"],
+    a: ["The magnetic stripe sends the same data every swipe, so a skimmer can copy it once and a fake card can reuse it. A chip (EMV) creates a new one-time code, a cryptogram, for every purchase, so a copied code won't work twice.", "Contactless gives the same protection; you just tap instead of insert. U.S. merchants moved to chip readers around the 2015 liability shift."],
+    rel: ["tds", "token", "tapflow"] },
+  { id: "tds", art: "cards", q: "What is 3-D Secure?",
+    k: ["3ds", "3-d secure", "3d secure", "online fraud", "challenge", "frictionless", "liability shift", "verified by visa"],
+    a: ["3-D Secure is an extra check for online card payments. The merchant shares device and order data with the issuer. If the risk looks low, the payment goes through with no extra step (frictionless). If not, you're challenged, for example with a code, your banking app or a fingerprint.", "Either way, once a purchase is authenticated, liability for most fraud chargebacks shifts from the merchant to the issuer."],
+    rel: ["chargeback", "chip", "passkeys"] },
+  { id: "chargeback", art: "cards", q: "How does a chargeback work?",
+    k: ["chargeback", "dispute", "refund", "wrong charge", "representment", "arbitration", "120 days", "fraud on my card"],
+    a: ["You dispute the charge with your issuer. The issuer files a chargeback through the network, and the acquirer pulls the money back from the merchant. The merchant can accept the loss or fight back with evidence (representment). If it's still disputed, the network makes the final call (arbitration).", "Cardholders generally have up to 120 days to dispute, and longer in some cases."],
+    rel: ["pushpull", "tds", "protections"] },
+  { id: "fees", art: "cards", q: "Who gets paid when I use my card?",
+    k: ["fee", "fees", "interchange", "merchant fee", "swipe fee", "who gets paid", "merchant discount", "markup", "network fee", "cost of card"],
+    a: ["The merchant pays. On a credit card sale it typically gives up about 1.5% to 3.5%, most of it as interchange, a fee that goes to your issuer and funds rewards and fraud protection. The card network and the acquirer take smaller cuts.", "U.S. merchants paid about $187 billion in card processing fees in 2024, according to the Nilson Report. Debit is much cheaper because of the Durbin cap."],
+    rel: ["durbin", "players", "applepayfee"] },
+  { id: "durbin", art: "cards", q: "What is the Durbin Amendment?",
+    k: ["durbin", "regulation ii", "reg ii", "debit cap", "21 cents", "debit interchange", "court"],
+    a: ["The Durbin Amendment caps debit interchange for issuers with more than $10 billion in assets. Under the Fed's Regulation II, the cap has been 21 cents plus 0.05% of the sale, plus a 1-cent fraud adjustment. Smaller issuers are exempt, which is one reason many fintech debit and prepaid programs use smaller banks.", "In October 2026 a federal appeals court struck down the Fed's 21-cent formula. It stays in force until the ruling takes effect, and the Fed will have to write a new one."],
+    rel: ["fees", "debit", "progmgr"] },
+  { id: "virtual", art: "cards", q: "What is a virtual card?",
+    k: ["virtual card", "single use card", "virtual", "burner card", "online only card"],
+    a: ["A virtual card is a real card number that exists only digitally, often created instantly and sometimes for a single purchase or a single merchant, with its own limits.", "Businesses use them to control spending. A virtual card is different from a wallet token: the virtual card is a real card account, while a token stands in for a card number you already have."],
+    rel: ["jit", "token", "networktoken"] },
+
+  // ---- Credit, Debit and Prepaid ----
+  { id: "cdp", art: "whose", q: "What's the difference between credit, debit and prepaid cards?",
+    k: ["credit vs debit", "debit vs credit", "prepaid", "credit card", "debit card", "difference", "whose money", "types of cards"],
+    a: ["They can look identical, but the money behind them differs. Credit spends the issuer's money, lent to you, and you repay later. Debit spends your own money from your checking account. Prepaid spends money loaded in advance, by you or by a funder like an employer, held in a pooled account at the issuing bank.", "That decides who carries the risk: the issuer for credit, mostly you for debit, and for prepaid the program, which must keep its ledger matched to the money in the bank."],
+    rel: ["fbo", "protections", "holds"] },
+  { id: "debit", art: "whose", q: "How does a debit card payment hit my account?",
+    k: ["debit", "checking account", "overdraft", "demand deposit", "pending", "posted"],
+    a: ["At the tap, your bank places a hold and your available balance drops right away, even though the purchase shows as pending. When the merchant's transaction clears, usually in a day or two, the hold is replaced by the final posted debit. If the final amount differs, as with a tip, the posted amount wins.", "If there isn't enough money, the bank either declines or covers it and may charge an overdraft fee, depending on your settings."],
+    rel: ["holds", "protections", "durbin"] },
+  { id: "holds", art: "whose", q: "What's the difference between available and ledger balance?",
+    k: ["available balance", "ledger balance", "posted balance", "hold", "pending transaction", "why is my balance different"],
+    a: ["Your available balance is what you can spend right now: your posted balance minus any holds. Your ledger (posted) balance is what your account shows once transactions have cleared, with pending holds left out.", "A hold reserves money at authorization so it can't be spent twice. It's replaced by the final charge at clearing, or it drops off."],
+    rel: ["debit", "lifecycle", "cdp"] },
+  { id: "fbo", art: "whose", q: "Where does the money on a prepaid card actually sit?",
+    k: ["prepaid", "fbo", "for the benefit of", "pooled account", "custodial account", "ledger", "payroll card", "where is my money"],
+    a: ["Usually not in an account in your name. The issuing bank holds one large pooled custodial account, titled \"for the benefit of\" the cardholders (an FBO account). A separate program ledger, usually run by the program manager or its processor, records how much of it belongs to each person.", "That's why daily reconciliation, matching the ledger to the bank balance, is the most important control in prepaid."],
+    rel: ["passthrough", "synapse", "funding"] },
+  { id: "passthrough", art: "whose", q: "Is money on a prepaid card FDIC insured?",
+    k: ["fdic", "insured", "insurance", "pass-through", "pass through", "safe", "deposit insurance"],
+    a: ["Often yes, through pass-through FDIC insurance. The FDIC can treat each cardholder's share of a pooled account as that person's own insured deposit, but only if the account is properly set up as custodial and the records show who owns how much.", "Most closed-loop gift cards aren't covered this way."],
+    rel: ["fbo", "synapse", "prepaidrule"] },
+  { id: "synapse", art: "whose", q: "What happened with Synapse?",
+    k: ["synapse", "middleware", "bankruptcy", "missing money", "frozen", "fintech collapse"],
+    a: ["Synapse was a middleware company that sat between fintech apps and the banks holding their customers' money in pooled accounts, and it kept the ledger of who owned what. When it filed for bankruptcy in April 2024, about $265 million belonging to more than 100,000 consumers was frozen, and tens of millions couldn't be matched to where they should be. The CFPB estimated the shortfall at $60–90 million, and the bankruptcy trustee at $65–95 million.", "In late 2025 the CFPB allocated about $46 million toward affected customers. The lesson: in prepaid and fintech, the hardest part isn't moving money, it's always knowing whose money it is."],
+    rel: ["fbo", "passthrough", "funding"] },
+  { id: "funding", art: "whose", q: "What are prefunded, funded-in-arrears and just-in-time card programs?",
+    k: ["prefunded", "pre-funded", "arrears", "funded in arrears", "funding model", "corporate card", "client funding", "program funding"],
+    a: ["They describe when the company behind a card program puts up the money. Prefunded: before any card can spend, which is the safest model, used for payroll, benefits and gift cards. Funded in arrears: after the spending, on a billing cycle, like a business credit line, so the program needs credit approval and often collateral. Just-in-time: at the moment of each authorization.", "Many real programs blend these."],
+    rel: ["jit", "fbo", "virtual"] },
+  { id: "jit", art: "whose", q: "What is just-in-time funding?",
+    k: ["just in time", "jit", "jit funding", "real time funding", "expense card", "spend control"],
+    a: ["The card balance stays at or near zero. When the card is tapped, the authorization is passed in real time to the program, which applies its own rules, such as spending category, amount or employee, and moves just enough money to cover that one purchase.", "It gives fine control but needs fast, reliable systems. Expense management platforms and single-use virtual cards often work this way."],
+    rel: ["funding", "virtual", "lifecycle"] },
+  { id: "protections", art: "whose", q: "What protections do I have if my card is stolen?",
+    k: ["stolen card", "lost card", "liability", "regulation z", "reg z", "regulation e", "reg e", "unauthorized", "fraud protection", "zero liability", "protection"],
+    a: ["Credit cards fall under Regulation Z, which caps your liability for unauthorized charges at $50, and many networks set it at zero. Debit cards fall under Regulation E: if the card is lost or stolen, you owe up to $50 if you report within two business days of noticing, up to $500 after that, and potentially unlimited after 60 days from your statement. If only your card number is used, you generally owe nothing if you report within 60 days of the statement.", "With debit, if the bank needs more than 10 business days to investigate, it generally must credit the money back provisionally."],
+    rel: ["chargeback", "prepaidrule", "lostphone"] },
+  { id: "prepaidrule", art: "whose", q: "What is the CFPB Prepaid Rule?",
+    k: ["prepaid rule", "cfpb", "consumer financial protection bureau", "prepaid protections", "gift card rules"],
+    a: ["Since April 1, 2019, the CFPB's Prepaid Rule extends Regulation E to most prepaid accounts, including payroll and many benefit cards. It brings protections for lost or stolen cards and errors, plus standard fee disclosures before you buy.", "Most gift cards are outside it and have their own federal rules on fees and expiration dates. Many digital wallets that hold balances are covered too."],
+    rel: ["protections", "fbo", "storedbalance"] },
+
+  // ---- Tap to Pay ----
+  { id: "token", art: "tap", q: "What is a payment token?",
+    k: ["token", "tokenization", "tokenisation", "pan", "card number", "dpan", "device account number", "stand-in number"],
+    a: ["A token is a stand-in number, in the same format as your card number (the PAN), that works only within limits, such as on one phone or at one merchant. It's created when you add a card to a wallet, a step called provisioning: the wallet asks the network's token service, your issuer approves, and the token is sent to your phone.", "Only the network's token vault knows which token belongs to which real card number."],
+    rel: ["tapflow", "stolen", "networktoken"] },
+  { id: "tapflow", art: "tap", q: "What happens when I pay with my phone?",
+    k: ["apple pay", "google pay", "samsung pay", "pay with phone", "phone tap", "mobile wallet", "detokenization", "tap phone"],
+    a: ["You unlock with your face, fingerprint or passcode. The phone sends a token plus a one-time cryptogram over NFC. The store and acquirer pass it on and never see your real card number. The network checks the cryptogram and swaps the token for your real card number (detokenization), and your issuer approves as usual.", "One giveaway: the last four digits on your receipt often don't match your plastic card, because they belong to the token."],
+    rel: ["token", "stolen", "wallets"] },
+  { id: "stolen", art: "tap", q: "Why is a stolen token useless?",
+    k: ["stolen token", "breach", "hacker", "data breach", "is apple pay safe", "safe", "secure", "security"],
+    a: ["A token only works from the device or merchant it was issued for, and each purchase needs a fresh cryptogram that only that phone can create. Copy a token and its old code from a breached store, and a replay is declined because the code was already used; typed into a website, it fails because it's a phone-only token.", "A stolen real card number, by contrast, can often be used online until your bank replaces the card."],
+    rel: ["lostphone", "token", "networktoken"] },
+  { id: "lostphone", art: "tap", q: "What happens if I lose my phone?",
+    k: ["lost phone", "lose my phone", "phone stolen", "suspend token", "new phone"],
+    a: ["Your bank can suspend just that phone's token without cancelling your card, so your plastic card and any saved cards keep working. A thief would also need your face, fingerprint or passcode to make the phone pay.", "On a new phone you add the same card and get a brand-new token."],
+    rel: ["stolen", "token", "protections"] },
+  { id: "wallets", art: "tap", q: "What kinds of digital wallets are there?",
+    k: ["digital wallet", "wallet", "wallets", "types of wallet", "device wallet", "checkout wallet", "paypal wallet"],
+    a: ["Three kinds. Device wallets, like Apple Pay and Google Pay, hold a token for a card you already have, so the money stays with your issuer. Checkout wallets, like PayPal or Click to Pay, save your cards or bank and pay for you online. Stored-balance wallets, like a Venmo or Cash App balance, actually hold money, often in a pooled account.", "Many apps are more than one kind: PayPal can pay from a saved card or from its own balance."],
+    rel: ["tapflow", "storedbalance", "clicktopay"] },
+  { id: "storedbalance", art: "tap", q: "Is money in a Venmo or PayPal balance protected?",
+    k: ["stored balance", "venmo balance", "paypal balance", "cash app balance", "wallet balance safe"],
+    a: ["When a wallet holds your money, the wallet company is the one keeping it, often in a pooled account at a partner bank. The CFPB's Prepaid Rule covers many of these wallets, giving them Regulation E protections for errors and unauthorized transfers.", "As the Synapse case showed, what matters is whether the records clearly show whose money is whose."],
+    rel: ["synapse", "prepaidrule", "venmo"] },
+  { id: "networktoken", art: "tap", q: "What's the difference between a network token and a gateway token?",
+    k: ["network token", "gateway token", "card on file", "saved card", "subscription", "vault token", "pci token", "expired card"],
+    a: ["When a store saves your card, a gateway token is created by its payment provider and keeps your number out of the store's systems, but the provider still sends your real number to the network. A network token is created by Visa or Mastercard and tied to that one merchant, so a stolen one can't be used anywhere else.", "Network tokens also update automatically when your bank sends you a new card, so subscriptions don't fail. Visa reported that over 60% of e-commerce transactions on its network were tokenized as of September 30, 2026."],
+    rel: ["clicktopay", "token", "stolen"] },
+  { id: "clicktopay", art: "tap", q: "What are Click to Pay and payment passkeys?",
+    k: ["click to pay", "passkey", "passkeys", "src", "emvco", "checkout button", "typing card number"],
+    a: ["Click to Pay is the networks' shared checkout button: you enroll your cards once, and any store showing the button can pay with a token instead of asking you to type a card number. Passkeys replace passwords or text codes with the same face or fingerprint check you use to unlock your phone.", "Mastercard has said it wants to phase out manually typed card numbers for online shopping in Europe by 2030."],
+    rel: ["networktoken", "tds", "agents"] },
+  { id: "applepayfee", art: "tap", q: "Who pays for Apple Pay?",
+    k: ["apple pay fee", "who pays apple", "wallet fee", "apple fee", "does apple charge"],
+    a: ["Apple says it doesn't charge merchants or shoppers for Apple Pay. Merchants pay the usual card fees, since it's still a card payment. At launch in 2014, issuers were widely reported to pay Apple a small share of each credit purchase, about 0.15%.", "Banks accept it because tokenized, biometrically verified payments carry less fraud."],
+    rel: ["fees", "tapflow", "wallets"] },
+  { id: "agents", art: "tap", q: "Can AI agents pay for things on my behalf?",
+    k: ["ai", "agent", "agents", "agentic", "ai shopping", "chatgpt", "agent pay", "intelligent commerce"],
+    a: ["They're starting to. Visa Intelligent Commerce and Mastercard Agent Pay, both launched in 2025, give an AI agent its own token tied to limits you set, such as which stores, how much and for how long. If the agent misbehaves, that token can be switched off without touching your card.", "The big idea stays the same: the less often your real card number travels, the safer it is."],
+    rel: ["token", "clicktopay", "networktoken"] },
+
+  // ---- About ----
+  { id: "about", art: "about", q: "Who writes Payments, Decoded?",
+    k: ["who are you", "who wrote", "author", "ankit", "about", "who is this"],
+    a: ["Payments, Decoded is written by Ankit, a payment product management professional who's passionate about technology, AI and how money moves. The series explains the systems behind everyday payments in plain language, for anyone new to payments."],
+    rel: ["topics", "blocks", "cdp"] },
+  { id: "topics", art: "about", q: "What can I ask you?",
+    k: ["help", "what can you do", "what can i ask", "topics", "hello", "hi", "hey", "articles", "list"],
+    a: ["I answer from four articles: Payments 101 (cards, checks, ACH, wires, RTP and FedNow, Zelle, SWIFT), Cards, End to End (who's involved, authorization to funding, fees, 3-D Secure, chargebacks), Credit, Debit and Prepaid (whose money it is, pooled accounts, Synapse, funding models) and Tap to Pay (wallets and tokens).", "Try one of the questions below, or type your own."],
+    rel: ["blocks", "lifecycle", "token"] }
+];
+
+const STOP = new Set("a an the is are was were be been do does did i my me you your we our it its of to in on at for from by with and or but how what why when where who which can could should would will this that these those there their they them about into than then so if as not no yes vs versus get got".split(" "));
+const norm = s => s.toLowerCase().replace(/[’']/g, "").replace(/[^a-z0-9/+.-]+/g, " ").replace(/\s+/g, " ").trim();
+const stem = w => w.length > 4 ? w.replace(/(ings|ing|ers|er|ies|es|s|ed)$/, "") : w;
+const toks = s => norm(s).split(" ").filter(w => w && !STOP.has(w)).map(stem);
+
+const INDEX = KB.map(e => ({
+  e,
+  q: new Set(toks(e.q)),
+  k: new Set(e.k.flatMap(toks)),
+  phrases: e.k.map(norm).filter(p => p.includes(" ") || p.length > 2)
+}));
+
+function search(text) {
+  const t = toks(text), n = " " + norm(text) + " ";
+  if (!t.length) return [];
+  return INDEX.map(ix => {
+    let s = 0;
+    t.forEach(w => { if (ix.k.has(w)) s += 2; else if (ix.q.has(w)) s += 1; });
+    ix.phrases.forEach(p => { if (n.includes(" " + p + " ")) s += p.includes(" ") ? 3 : 1.5; });
+    return { e: ix.e, s };
+  }).filter(r => r.s > 0).sort((a, b) => b.s - a.s);
+}
+
+const log = document.getElementById("log"), form = document.getElementById("ask"), input = document.getElementById("q");
+const byId = id => KB.find(e => e.id === id);
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function add(cls, build) {
+  const m = document.createElement("div"); m.className = "msg " + cls; build(m); log.appendChild(m);
+  log.scrollTop = log.scrollHeight; return m;
+}
+function addChips(m, ids, label) {
+  const wrap = document.createElement("div"); wrap.className = "rel";
+  if (label) { const l = document.createElement("span"); l.className = "rel-label"; l.textContent = label; wrap.appendChild(l); }
+  ids.map(byId).filter(Boolean).forEach(e => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "suggest"; b.textContent = e.q;
+    b.addEventListener("click", () => ask(e.q, e)); wrap.appendChild(b);
+  });
+  m.appendChild(wrap);
+}
+function answer(e) {
+  add("bot", m => {
+    e.a.forEach(p => { const el = document.createElement("p"); el.textContent = p; m.appendChild(el); });
+    if (e.art !== "about") {
+      const s = document.createElement("a"); s.className = "src"; s.href = MEDIUM; s.target = "_blank"; s.rel = "noopener";
+      s.textContent = "From: " + ART[e.art] + " →"; m.appendChild(s);
+    }
+    addChips(m, e.rel, "Related questions");
+  });
+}
+function noMatch(text) {
+  add("bot", m => {
+    const p = document.createElement("p");
+    p.textContent = "I couldn't find that in my articles yet. I only answer from what I've written in Payments, Decoded, so I'd rather not guess. Here are some things I can help with:";
+    m.appendChild(p);
+    addChips(m, ["blocks", "lifecycle", "cdp", "token"]);
+    const p2 = document.createElement("p"); p2.style.marginTop = "10px";
+    p2.textContent = "Have a topic you'd like covered? Leave a comment on Medium.";
+    m.appendChild(p2);
+  });
+}
+function ask(text, forced) {
+  text = (text || "").trim(); if (!text) return;
+  const mine = add("me", m => { m.textContent = text; });
+  const typing = add("bot", m => { m.innerHTML = '<span class="typing" aria-label="Typing"><span></span><span></span><span></span></span>'; });
+  setTimeout(() => {
+    typing.remove();
+    const r = forced ? null : search(text);
+    if (forced) answer(forced);
+    else if (!r.length || r[0].s < 3) noMatch(text);
+    else answer(r[0].e);
+    log.scrollTop = mine.offsetTop - 12;
+  }, reduceMotion ? 0 : 450);
+}
+form.addEventListener("submit", ev => { ev.preventDefault(); const v = input.value; input.value = ""; ask(v); });
+
+add("bot", m => {
+  const p = document.createElement("p");
+  p.textContent = "Hi! Ask me anything about how money moves: cards, ACH, instant payments, prepaid cards, digital wallets and more. I answer only from my Payments, Decoded articles.";
+  m.appendChild(p);
+  addChips(m, ["zelle", "lifecycle", "fbo", "tapflow"], "Try one of these");
+});
 </script>
 </body>
 </html>
