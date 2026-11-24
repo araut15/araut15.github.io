@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Message Decoder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+<style>
+/* Same family as Follow the Money and the Token Explorer: a message on the desk, tap a line to read it. */
+:root {
+  --bg: #f2f5f3; --surface: #ffffff; --ink: #16211c; --muted: #56645d; --rule: #d5ddd8;
+  --accent: #1d5e48; --accent-soft: #e2efe9; --good: #1d6b3f; --good-soft: #e1f1e6; --warn: #8a6100; --warn-soft: #f6edd6;
+  --font-display: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1613; --surface: #17211d; --ink: #e6eeea; --muted: #9aaba3; --rule: #2b3833;
+    --accent: #6cc3a0; --accent-soft: #1d3329; --good: #79cf98; --good-soft: #1b3324; --warn: #e2b555; --warn-soft: #3a2f16; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1613; --surface: #17211d; --ink: #e6eeea; --muted: #9aaba3; --rule: #2b3833;
+  --accent: #6cc3a0; --accent-soft: #1d3329; --good: #79cf98; --good-soft: #1b3324; --warn: #e2b555; --warn-soft: #3a2f16; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  padding: 24px max(16px, env(safe-area-inset-right, 0px)) 40px max(16px, env(safe-area-inset-left, 0px));
+}
+.wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+.sitenav { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
+.sitenav a { display: inline-flex; align-items: center; min-height: 40px; font-size: 14px; font-weight: 600; color: var(--accent); text-decoration: none; }
+.sitenav a:hover { text-decoration: underline; }
+.sitenav .home .full { color: var(--ink); }
+.sitenav .other { color: var(--muted); font-weight: 500; }
+.sitenav .other b { color: var(--accent); font-weight: 600; }
+
+header { display: flex; flex-direction: column; gap: 6px; }
+.eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(28px, 4.4vw, 40px); line-height: 1.15; margin: 0; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 64ch; margin: 0; }
+
+.tabs, .msgs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tabs button, .msgs button {
+  font: inherit; font-size: 14px; font-weight: 500; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--rule); border-radius: 999px; padding: 8px 16px; cursor: pointer; min-height: 40px;
+}
+.tabs button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.msgs button { font-size: 13px; padding: 6px 12px; min-height: 36px; }
+.msgs button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.about { margin: 0; color: var(--muted); max-width: 72ch; }
+
+.message { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; }
+.message-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 14px 18px; border-bottom: 1px solid var(--rule); }
+.message-head .name { font-weight: 600; }
+.message-head .hint { font-size: 13px; color: var(--muted); }
+.lines { list-style: none; margin: 0; padding: 6px 0; font-family: var(--font-num); font-size: 14px; }
+.line { border-bottom: 1px solid transparent; }
+.line .static { display: block; padding: 3px 18px; color: var(--muted); white-space: pre; overflow-x: auto; }
+.line button {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 14px; align-items: baseline; width: 100%;
+  text-align: left; font: inherit; color: var(--ink); background: none; border: 0; padding: 7px 18px; cursor: pointer;
+}
+.line button:hover { background: var(--accent-soft); }
+.line button[aria-expanded="true"] { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.line .code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.line .code .k { color: var(--accent); font-weight: 500; }
+.line .label { font-family: var(--font-body); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.explain { font-family: var(--font-body); font-size: 15px; padding: 4px 18px 16px 21px; background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.explain h3 { margin: 6px 0 6px; font-size: 16px; }
+.explain p { margin: 0 0 8px; max-width: 70ch; }
+.explain .why { color: var(--muted); }
+.explain .twin { display: inline-flex; gap: 6px; align-items: center; margin-top: 4px; font: inherit; font-size: 13px; font-weight: 600; color: var(--accent); background: var(--surface); border: 1px solid var(--accent); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.explain .none { font-size: 13px; color: var(--muted); }
+
+.legend { font-size: 13px; color: var(--muted); margin: 0; }
+footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule); padding-top: 14px; }
+footer a { color: inherit; }
+
+@media (max-width: 640px) {
+  .line button { grid-template-columns: minmax(0, 1fr); padding: 9px 14px; }
+  .line .label { white-space: normal; }
+  .line .static { padding: 3px 14px; }
+  .lines { font-size: 13px; }
+  .explain { padding: 4px 14px 14px 17px; }
+  .message-head { padding: 12px 14px; }
+  .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+  .tabs button { flex: 0 0 auto; min-height: 44px; }
+  .msgs button { min-height: 40px; }
+  h1 { font-size: 28px; }
+}
+@media (max-width: 480px) { .sitenav .home .full, .sitenav .other .lbl { display: none; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="sitenav" aria-label="Site">
+    <a class="home" href="https://araut15.github.io/">←&nbsp;<span class="short">Home</span><span class="full">&nbsp;· Payments, Decoded</span></a>
+    <a class="other" href="https://araut15.github.io/Follow-the-Money/"><span class="lbl">Next tool:&nbsp;</span><b>Follow the Money →</b></a>
+  </nav>
+
+  <header>
+    <div class="eyebrow">Payments, Decoded · Interactive</div>
+    <h1>Message Decoder</h1>
+    <p class="lede">The same $50 payment, written in the two languages of payments. Tap any line to see what it means in plain English, and jump to the same idea in the other language.</p>
+  </header>
+
+  <div class="tabs" role="group" aria-label="Choose a language" id="tabs"></div>
+  <p class="about" id="about"></p>
+  <div class="msgs" role="group" aria-label="Choose a message" id="msgs"></div>
+
+  <section class="message" aria-labelledby="mname">
+    <div class="message-head"><span class="name" id="mname"></span><span class="hint">Tap a line to decode it</span></div>
+    <ul class="lines" id="lines"></ul>
+  </section>
+
+  <p class="legend">Example values only. Real messages carry more fields, and each network or payment system has its own rules for filling them.</p>
+
+  <footer>
+    <span>Goes with: ISO 8583 vs. ISO 20022 in the Payments, Decoded series</span>
+    <span><a href="https://araut15.github.io/">Payments, Decoded home</a> · © 2026 Ankit</span>
+  </footer>
+</div>
+
+<script>
+/* Each line: s = static text, or a decodable field: id, code, label, title, what, why, twin: [lang, msg, id] */
+const L = {
+  iso8583: {
+    tab: "Card tap · ISO 8583",
+    about: "ISO 8583 is the card world's language: compact, numeric and fast. Fields are known only by number, and a bitmap says which ones are present.",
+    msgs: {
+      m0100: { btn: "0100 · Authorization request", name: "Authorization request (0100): terminal side → issuer", lines: [
+        { id: "mti", code: "MTI   0100", label: "Message type",
+          title: "Message type indicator: 0100",
+          what: "Four digits that say what kind of message this is. 0 = the 1987 edition, 1 = authorization, 0 = request, 0 = sent by the acquirer side.",
+          why: "Every system along the way reads these four digits first to know how to handle the message. The reply will be 0110.",
+          twin: ["iso20022", "pacs008", "msgdef"] },
+        { id: "bitmap", code: "BMP   7220040008E08200", label: "Which fields follow",
+          title: "Bitmap",
+          what: "A 64-bit map, shown here in hex, where each bit switches a numbered field on or off, like a checklist where only the ticked fields follow. Here bits 2, 3, 4, 7, 11, 22, 37, 41, 42, 43, 49 and 55 are on: exactly the fields below. If bit 1 were on, a second bitmap for fields 65 to 128 would follow.",
+          why: "This is how ISO 8583 stays tiny: it only sends the fields it needs, with no labels. The receiver uses the bitmap to know where each field starts.",
+          twin: null },
+        { id: "de2", code: "DE 2  16 4111111111111111", label: "Card number",
+          title: "Field 2: Primary account number (PAN)",
+          what: "The card number, with a two-digit length prefix (16). 4111 1111 1111 1111 is a standard test card number. In a phone payment, this would be the token instead.",
+          why: "It tells the network which issuer to route to (from the first digits, the BIN) and the issuer which account to check.",
+          twin: ["iso20022", "pacs008", "dbtracct"] },
+        { id: "de3", code: "DE 3  000000", label: "What kind of transaction",
+          title: "Field 3: Processing code",
+          what: "000000 means a purchase of goods or services. Other codes mean cash withdrawal, refund, balance enquiry and so on.",
+          why: "The same message type can carry very different actions; the processing code says which one.",
+          twin: null },
+        { id: "de4", code: "DE 4  000000005000", label: "Amount",
+          title: "Field 4: Transaction amount",
+          what: "$50.00, written as 5000 cents and padded with zeros to 12 digits. There's no decimal point; the currency (field 49) tells you where it goes.",
+          why: "Fixed-length numbers are fast for machines to read, which is the whole point of ISO 8583.",
+          twin: ["iso20022", "pacs008", "amt"] },
+        { id: "de7", code: "DE 7  1120143015", label: "When it was sent",
+          title: "Field 7: Transmission date and time",
+          what: "November 20, 14:30:15, in the format MMDDhhmmss, usually in UTC. Notice there's no year.",
+          why: "Together with the trace number, it helps match requests, replies and later reversals.",
+          twin: ["iso20022", "pacs008", "credttm"] },
+        { id: "de11", code: "DE 11 004217", label: "Trace number",
+          title: "Field 11: System trace audit number (STAN)",
+          what: "A six-digit counter set by the sender for this message.",
+          why: "The reply carries the same number back, so the terminal knows which question the answer belongs to.",
+          twin: ["iso20022", "pacs008", "e2e"] },
+        { id: "de22", code: "DE 22 071", label: "How the card was read",
+          title: "Field 22: Point-of-service entry mode",
+          what: "07 means the card (or phone) was read contactlessly by chip; the last digit says the terminal can accept a PIN. Other values mean inserted chip, magnetic stripe or typed in.",
+          why: "Issuers judge risk partly on this: a chip or contactless read is much harder to fake than a typed card number.",
+          twin: null },
+        { id: "de37", code: "DE 37 632814004217", label: "Reference number",
+          title: "Field 37: Retrieval reference number",
+          what: "A 12-character reference for this transaction.",
+          why: "Used to find the transaction later, for example in a refund or a chargeback.",
+          twin: ["iso20022", "pacs008", "e2e"] },
+        { id: "de41", code: "DE 41 TERM0007", label: "Terminal",
+          title: "Field 41: Card acceptor terminal ID",
+          what: "Which terminal at the merchant took the payment.",
+          why: "Useful for fraud analysis and for the merchant's own reconciliation.",
+          twin: null },
+        { id: "de42", code: "DE 42 CAFE00123", label: "Merchant",
+          title: "Field 42: Card acceptor ID (merchant ID)",
+          what: "The merchant's ID with its acquirer.",
+          why: "This is the closest a card message gets to saying who is being paid. It identifies the merchant's account, not a person or a bank account.",
+          twin: ["iso20022", "pacs008", "cdtr"] },
+        { id: "de43", code: "DE 43 CORNER CAFE  DALLAS  TXUS", label: "Merchant name and place",
+          title: "Field 43: Card acceptor name and location",
+          what: "A fixed-length text field with the merchant's name, city and state or country.",
+          why: "It's what usually shows up on your card statement as the description of the purchase.",
+          twin: ["iso20022", "pacs008", "cdtr"] },
+        { id: "de49", code: "DE 49 840", label: "Currency",
+          title: "Field 49: Transaction currency code",
+          what: "840 is the numeric ISO code for U.S. dollars.",
+          why: "It tells everyone how to read the amount in field 4, including where the decimal point goes.",
+          twin: ["iso20022", "pacs008", "amt"] },
+        { id: "de55", code: "DE 55 9F2608A7F3C21D9E04B6…", label: "Chip data",
+          title: "Field 55: Chip (EMV) data",
+          what: "A bundle of chip data in tag-length-value format. Tag 9F26 holds the cryptogram, the one-time code created for this purchase.",
+          why: "This is what makes a chip or phone payment hard to counterfeit: the issuer checks the cryptogram before approving.",
+          twin: null }
+      ]},
+      m0110: { btn: "0110 · Authorization response", name: "Authorization response (0110): issuer → terminal side", lines: [
+        { id: "rmti", code: "MTI   0110", label: "Message type",
+          title: "Message type indicator: 0110",
+          what: "Same as 0100, except the third digit is 1: this is the response to an authorization request.",
+          why: "The terminal knows this is the answer it was waiting for.",
+          twin: ["iso20022", "pacs002", "msgdef"] },
+        { id: "rbitmap", code: "BMP   002000000E400000", label: "Which fields follow",
+          title: "Bitmap",
+          what: "A shorter set of fields this time: bits 11, 37, 38, 39 and 42 are on. The reply echoes key fields from the request and adds the decision. Real responses often echo more, such as the amount.",
+          why: "Echoing fields lets each side match the reply to the right request.",
+          twin: null },
+        { id: "r11", code: "DE 11 004217", label: "Same trace number",
+          title: "Field 11: Trace number, echoed",
+          what: "The same 004217 as in the request.",
+          why: "This is how the terminal pairs the answer with the question.",
+          twin: ["iso20022", "pacs002", "oe2e"] },
+        { id: "r37", code: "DE 37 632814004217", label: "Same reference",
+          title: "Field 37: Retrieval reference number, echoed",
+          what: "The same reference as in the request.",
+          why: "Used later to find this exact authorization.",
+          twin: ["iso20022", "pacs002", "oe2e"] },
+        { id: "r38", code: "DE 38 A1B2C3", label: "Approval code",
+          title: "Field 38: Authorization identification response",
+          what: "A six-character approval code from the issuer. It often appears on your receipt as the auth code.",
+          why: "It's proof the issuer approved this purchase, useful if the transaction is questioned later.",
+          twin: null },
+        { id: "r39", code: "DE 39 00", label: "The answer",
+          title: "Field 39: Response code",
+          what: "00 means approved. Other common codes: 05 do not honor, 51 insufficient funds, 54 expired card, 91 issuer unavailable.",
+          why: "Two characters carry the whole decision. The terminal shows approved or declined based on this field.",
+          twin: ["iso20022", "pacs002", "sts"] },
+        { id: "r42", code: "DE 42 CAFE00123", label: "Merchant, echoed",
+          title: "Field 42: Merchant ID, echoed",
+          what: "The same merchant ID as in the request.",
+          why: "Confirms which merchant this answer is for.",
+          twin: null }
+      ]}
+    }
+  },
+  iso20022: {
+    tab: "Bank transfer · ISO 20022",
+    about: "ISO 20022 is the bank world's language: structured, labeled and rich. Every piece of data sits inside a named tag, so the message mostly explains itself.",
+    msgs: {
+      pacs008: { btn: "pacs.008 · Credit transfer", name: "Customer credit transfer (pacs.008): Maya's bank → the café's bank", lines: [
+        { id: "msgdef", code: "<FIToFICstmrCdtTrf>", label: "Message type",
+          title: "pacs.008: FI to FI customer credit transfer",
+          what: "The opening tag says what this message is: one financial institution (FI) sending a customer's payment to another. Its code, pacs.008, means payments clearing and settlement, message 8.",
+          why: "It's the workhorse of ISO 20022, used by SWIFT, Fedwire, RTP, FedNow and many other systems.",
+          twin: ["iso8583", "m0100", "mti"] },
+        { s: "  <GrpHdr>" },
+        { id: "msgid", code: "    <MsgId>BNKA-20261120-0001</MsgId>", label: "Message ID",
+          title: "Message identification",
+          what: "A unique ID for this message, set by the sending bank.",
+          why: "Lets both banks refer to this exact message, for example in a status report.",
+          twin: null },
+        { id: "credttm", code: "    <CreDtTm>2026-11-20T14:30:15</CreDtTm>", label: "When it was created",
+          title: "Creation date and time",
+          what: "A full, readable date and time, including the year, unlike ISO 8583's field 7.",
+          why: "Clear timestamps help with audit trails and investigations.",
+          twin: ["iso8583", "m0100", "de7"] },
+        { id: "sttlm", code: "    <SttlmInf><SttlmMtd>CLRG</SttlmMtd></SttlmInf>", label: "How it settles",
+          title: "Settlement method",
+          what: "CLRG means the payment settles through a clearing system, such as RTP, FedNow or Fedwire.",
+          why: "Tells the receiving bank how the money itself will move, not just the message.",
+          twin: null },
+        { s: "  </GrpHdr>" },
+        { s: "  <CdtTrfTxInf>" },
+        { id: "e2e", code: "    <PmtId><EndToEndId>MAYA-1042</EndToEndId></PmtId>", label: "End-to-end reference",
+          title: "End-to-end identification",
+          what: "A reference set by Maya (or her bank) that must travel unchanged all the way to the café.",
+          why: "The café can match the money to the right order automatically. ISO 8583's trace and reference numbers only identify the message, not the customer's purpose.",
+          twin: ["iso8583", "m0100", "de37"] },
+        { id: "amt", code: '    <IntrBkSttlmAmt Ccy="USD">50.00</IntrBkSttlmAmt>', label: "Amount and currency",
+          title: "Interbank settlement amount",
+          what: "USD 50.00, written with a decimal point and the currency right inside the same tag.",
+          why: "Amount and currency travel together, so there's no separate currency field to look up.",
+          twin: ["iso8583", "m0100", "de4"] },
+        { id: "chrgbr", code: "    <ChrgBr>SLEV</ChrgBr>", label: "Who pays the fees",
+          title: "Charge bearer",
+          what: "SLEV means fees follow the rules of the payment system being used.",
+          why: "In cross-border SWIFT payments, banks instead use DEBT, CRED or SHAR (the old OUR, BEN and SHA), which decide whether fees come out of the amount the recipient receives.",
+          twin: null },
+        { s: "    <Dbtr>" },
+        { id: "dbtr", code: "      <Nm>Maya Lopez</Nm>", label: "Payer's name",
+          title: "Debtor name",
+          what: "The person paying. In ISO 20022, the payer is called the debtor.",
+          why: "Banks screen names against sanctions lists. A full name in its own field makes that far more accurate.",
+          twin: null },
+        { id: "addr", code: "      <PstlAdr><TwnNm>Dallas</TwnNm><Ctry>US</Ctry></PstlAdr>", label: "Payer's address",
+          title: "Debtor postal address (structured)",
+          what: "Town and country, each in its own field, instead of one free-text address line.",
+          why: "Structured addresses make screening and routing more reliable. SWIFT planned to require at least town and country for cross-border payments, a change it deferred in 2026.",
+          twin: null },
+        { s: "    </Dbtr>" },
+        { id: "dbtracct", code: "    <DbtrAcct><Id><Othr><Id>••••4410</Id></Othr></Id></DbtrAcct>", label: "Payer's account",
+          title: "Debtor account",
+          what: "The account the money comes from.",
+          why: "The closest equivalent to a card number in a card message, but it identifies a bank account, not a card.",
+          twin: ["iso8583", "m0100", "de2"] },
+        { id: "dbtragt", code: "    <DbtrAgt>…<MmbId>123456789</MmbId>…</DbtrAgt>", label: "Payer's bank",
+          title: "Debtor agent",
+          what: "Maya's bank, identified here by a clearing member ID such as a U.S. routing number (example value).",
+          why: "In ISO 20022, banks are called agents. Naming both banks clearly helps routing and investigations.",
+          twin: null },
+        { id: "cdtragt", code: "    <CdtrAgt>…<MmbId>987654321</MmbId>…</CdtrAgt>", label: "Payee's bank",
+          title: "Creditor agent",
+          what: "The café's bank (example value).",
+          why: "The receiving bank uses this to know the payment is for one of its customers.",
+          twin: null },
+        { id: "cdtr", code: "    <Cdtr><Nm>Corner Cafe</Nm>…</Cdtr>", label: "Payee",
+          title: "Creditor",
+          what: "The person or business being paid. In ISO 20022, the payee is called the creditor.",
+          why: "Unlike a card message's merchant ID, this names the actual recipient, which matters for screening.",
+          twin: ["iso8583", "m0100", "de42"] },
+        { id: "cdtracct", code: "    <CdtrAcct>…<Id>••••8832</Id>…</CdtrAcct>", label: "Payee's account",
+          title: "Creditor account",
+          what: "The account the money goes into.",
+          why: "Some systems now check this account's name against the creditor's name before sending, to catch mistakes and scams.",
+          twin: null },
+        { id: "rmt", code: "    <RmtInf><Ustrd>Catering order 1042</Ustrd></RmtInf>", label: "What it's for",
+          title: "Remittance information",
+          what: "Why the payment was made. Here it's free text; it can also be fully structured, such as an invoice number and date.",
+          why: "This is the field card messages don't have. It's what lets a business match payments to invoices automatically.",
+          twin: null },
+        { s: "  </CdtTrfTxInf>" },
+        { s: "</FIToFICstmrCdtTrf>" }
+      ]},
+      pacs002: { btn: "pacs.002 · Status report", name: "Payment status report (pacs.002): the café's bank → Maya's bank", lines: [
+        { id: "msgdef", code: "<FIToFIPmtStsRpt>", label: "Message type",
+          title: "pacs.002: FI to FI payment status report",
+          what: "The receiving bank's answer about the payment: accepted, rejected or pending.",
+          why: "In instant payment systems like RTP and FedNow, this reply comes back within seconds.",
+          twin: ["iso8583", "m0110", "rmti"] },
+        { s: "  <OrgnlGrpInfAndSts>" },
+        { id: "omsgid", code: "    <OrgnlMsgId>BNKA-20261120-0001</OrgnlMsgId>", label: "Which message this answers",
+          title: "Original message identification",
+          what: "Points back to the pacs.008 it's answering.",
+          why: "Like ISO 8583's echoed trace number, it pairs the answer with the question, but by naming the original message explicitly.",
+          twin: ["iso8583", "m0110", "r11"] },
+        { id: "omsgnm", code: "    <OrgnlMsgNmId>pacs.008.001.08</OrgnlMsgNmId>", label: "Which kind of message",
+          title: "Original message name",
+          what: "The exact type and version of the message being answered.",
+          why: "Systems handle several versions of each message, so the version is spelled out.",
+          twin: null },
+        { s: "  </OrgnlGrpInfAndSts>" },
+        { s: "  <TxInfAndSts>" },
+        { id: "oe2e", code: "    <OrgnlEndToEndId>MAYA-1042</OrgnlEndToEndId>", label: "Same end-to-end reference",
+          title: "Original end-to-end identification",
+          what: "The same MAYA-1042 reference from the payment.",
+          why: "Maya's bank can tell her exactly which payment the status is about.",
+          twin: ["iso8583", "m0110", "r37"] },
+        { id: "sts", code: "    <TxSts>ACCC</TxSts>", label: "The answer",
+          title: "Transaction status",
+          what: "ACCC means accepted, and the café's account has been credited. RJCT would mean rejected, followed by a reason code such as AC04 (closed account) or AC06 (blocked account). Instant payment systems also use other statuses, such as ACSC (settlement completed) and ACTC (passed technical checks).",
+          why: "Readable four-letter codes, plus a separate reason code, make problems much easier to diagnose than a two-digit card response.",
+          twin: ["iso8583", "m0110", "r39"] },
+        { s: "  </TxInfAndSts>" },
+        { s: "</FIToFIPmtStsRpt>" }
+      ]}
+    }
+  }
+};
+
+let lang = "iso8583", msg = "m0100", open = null;
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function highlight(code) {
+  // tags in XML, field names in 8583
+  if (code.trim().startsWith("<")) return esc(code).replace(/(&lt;\/?[A-Za-z0-9]+)([^&]*?)(&gt;)/g, '<span class="k">$1</span>$2<span class="k">$3</span>');
+  return esc(code).replace(/^(MTI|BMP|DE \d+)/, '<span class="k">$1</span>');
+}
+
+function buildTabs() {
+  const t = $("tabs"); t.innerHTML = "";
+  Object.entries(L).forEach(([k, v]) => {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = v.tab;
+    b.setAttribute("aria-pressed", k === lang ? "true" : "false");
+    b.addEventListener("click", () => { lang = k; msg = Object.keys(L[k].msgs)[0]; open = null; render(); });
+    t.appendChild(b);
+  });
+}
+function buildMsgs() {
+  const m = $("msgs"); m.innerHTML = "";
+  Object.entries(L[lang].msgs).forEach(([k, v]) => {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = v.btn;
+    b.setAttribute("aria-pressed", k === msg ? "true" : "false");
+    b.addEventListener("click", () => { msg = k; open = null; render(); });
+    m.appendChild(b);
+  });
+}
+function explainEl(f) {
+  const d = document.createElement("div"); d.className = "explain"; d.id = "ex-" + f.id;
+  const h = document.createElement("h3"); h.textContent = f.title; d.appendChild(h);
+  const p1 = document.createElement("p"); p1.textContent = f.what; d.appendChild(p1);
+  const p2 = document.createElement("p"); p2.className = "why"; p2.textContent = "Why it matters: " + f.why; d.appendChild(p2);
+  if (f.twin) {
+    const [tl, tm, tid] = f.twin, target = L[tl].msgs[tm].lines.find(x => x.id === tid);
+    const b = document.createElement("button"); b.type = "button"; b.className = "twin";
+    b.textContent = "Same idea in " + (tl === "iso8583" ? "ISO 8583" : "ISO 20022") + ": " + target.label + " →";
+    b.addEventListener("click", () => { lang = tl; msg = tm; open = tid; render(true); });
+    d.appendChild(b);
+  } else {
+    const n = document.createElement("span"); n.className = "none";
+    n.textContent = lang === "iso8583" ? "No direct equivalent in the ISO 20022 message." : "No direct equivalent in the card message.";
+    d.appendChild(n);
+  }
+  return d;
+}
+function render(jump) {
+  buildTabs(); buildMsgs();
+  const M = L[lang].msgs[msg];
+  $("about").textContent = L[lang].about;
+  $("mname").textContent = M.name;
+  const ul = $("lines"); ul.innerHTML = "";
+  M.lines.forEach(f => {
+    const li = document.createElement("li"); li.className = "line";
+    if (f.s !== undefined) { const s = document.createElement("span"); s.className = "static"; const si = (f.s.match(/^ */) || [""])[0].length; s.textContent = f.s.trimStart(); if (si) s.style.paddingLeft = "calc(" + (window.innerWidth <= 640 ? 14 : 18) + "px + " + si + "ch)"; li.appendChild(s); ul.appendChild(li); return; }
+    const b = document.createElement("button"); b.type = "button"; b.id = "f-" + f.id;
+    b.setAttribute("aria-expanded", open === f.id ? "true" : "false");
+    b.setAttribute("aria-controls", "ex-" + f.id);
+    b.innerHTML = '<span class="code"></span><span class="label"></span>';
+    const ind = (f.code.match(/^ */) || [""])[0].length, codeEl = b.querySelector(".code");
+    codeEl.innerHTML = highlight(f.code.trimStart());
+    if (ind) codeEl.style.paddingLeft = ind + "ch";
+    b.querySelector(".label").textContent = f.label;
+    b.addEventListener("click", () => { open = open === f.id ? null : f.id; render(); const el = $("f-" + f.id); if (el) el.focus({ preventScroll: true }); });
+    li.appendChild(b);
+    if (open === f.id) li.appendChild(explainEl(f));
+    ul.appendChild(li);
+  });
+  if (jump && open) {
+    const el = $("f-" + open);
+    if (el) { el.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); el.focus({ preventScroll: true }); }
+  }
+  try { history.replaceState(null, "", "#" + lang + "/" + msg + (open ? "/" + open : "")); } catch (e) {}
+}
+(function init() {
+  const [hl, hm, ho] = (location.hash || "").slice(1).split("/");
+  if (L[hl]) { lang = hl; if (L[hl].msgs[hm]) msg = hm; else msg = Object.keys(L[hl].msgs)[0]; if (ho && L[lang].msgs[msg].lines.some(x => x.id === ho)) open = ho; }
+  else { open = "de4"; }
+  render();
+})();
+</script>
+</body>
+</html>

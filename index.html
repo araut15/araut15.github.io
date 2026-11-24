@@ -109,7 +109,7 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 560px) { .log, .chat-head, .ask { padding-left: 16px; padding-right: 16px; } .chat-foot { padding: 0 16px 14px; } .msg { max-width: 94%; } }
 @media (prefers-reduced-motion: reduce) { .typing span { animation: none; opacity: .6; } .log { scroll-behavior: auto; } }
 /* Tools */
-.tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
 .tools .feature { display: flex; flex-direction: column; }
 .tools .feature p { flex: 1; }
 .tools .feature .tag { align-self: flex-start; }
@@ -175,6 +175,13 @@ footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule)
         <div class="meta">Goes with: Tap to Pay</div>
         <div class="go">Open the explorer →</div>
       </a>
+      <a class="feature" href="/message-decoder/">
+        <span class="tag">Interactive</span>
+        <h3>Message Decoder</h3>
+        <p>Tap any line of a card message (ISO 8583) or a bank message (ISO 20022) to see what it means, and jump between the two.</p>
+        <div class="meta">Goes with: ISO 8583 vs. ISO 20022</div>
+        <div class="go">Open the decoder →</div>
+      </a>
     </div>
   </section>
 
@@ -229,14 +236,17 @@ const ART = {
   cards: "Cards, End to End",
   whose: "Credit, Debit and Prepaid: Whose Money Is It?",
   tap: "Tap to Pay: Digital Wallets and Tokens",
+  isoart: "ISO 8583 vs. ISO 20022",
   about: "About this site"
 };
 const TOOLS = {
   ftm: { name: "Follow the Money", href: "/Follow-the-Money/" },
-  tok: { name: "Token Explorer", href: "/token-explorer/" }
+  tok: { name: "Token Explorer", href: "/token-explorer/" },
+  dec: { name: "Message Decoder", href: "/message-decoder/" }
 };
 const TOOL_FOR = { cdp: "ftm", debit: "ftm", holds: "ftm", fbo: "ftm", synapse: "ftm", funding: "ftm", jit: "ftm", virtual: "ftm",
-  token: "tok", tapflow: "tok", stolen: "tok", lostphone: "tok", networktoken: "tok" };
+  token: "tok", tapflow: "tok", stolen: "tok", lostphone: "tok", networktoken: "tok",
+  iso: "dec", iso8583: "dec", isomsgs: "dec", mxmt: "dec", isofaster: "dec", cardsiso: "dec" };
 const KB = [
   // ---- Payments 101 ----
   { id: "blocks", art: "p101", q: "What are the building blocks of every payment?",
@@ -418,6 +428,24 @@ const KB = [
     a: ["They're starting to. Visa Intelligent Commerce and Mastercard Agent Pay, both launched in 2025, give an AI agent its own token tied to limits you set, such as which stores, how much and for how long. If the agent misbehaves, that token can be switched off without touching your card.", "The big idea stays the same: the less often your real card number travels, the safer it is."],
     rel: ["token", "clicktopay", "networktoken"] },
 
+  // ---- ISO 8583 vs. ISO 20022 ----
+  { id: "isomsgs", art: "isoart", q: "What are pacs.008, pain.001 and camt.053?",
+    k: ["pacs.008", "pacs.002", "pacs.004", "pacs.009", "pain.001", "camt.053", "camt.054", "camt.056", "pacs", "pain", "camt", "message names", "mx message"],
+    a: ["They're ISO 20022 message names: a four-letter business area plus a number. pain messages go from a customer to its bank (pain.001: \"please pay this\"). pacs messages go between banks (pacs.008 sends a customer's payment; pacs.002 reports whether it was accepted or rejected; pacs.004 returns money). camt messages cover statements and notifications to customers (camt.053, camt.054) and investigations between banks, such as cancellation requests (camt.056).", "If you remember two, make them pacs.008 and pacs.002: the payment and its answer."],
+    rel: ["iso", "mxmt", "isofaster"] },
+  { id: "mxmt", art: "isoart", q: "What do MT, MX and CBPR+ mean?",
+    k: ["mt", "mx", "mt103", "cbpr", "cbpr+", "coexistence", "swift migration", "mt vs mx"],
+    a: ["MT messages, like the MT103 for a customer payment, are SWIFT's older formats. MX is a common nickname for the ISO 20022 messages that replaced them, and CBPR+ (Cross-Border Payments and Reporting Plus) is SWIFT's rulebook for using ISO 20022 in cross-border payments.", "SWIFT allowed ISO 20022 from March 2023 and made it mandatory for cross-border payment instructions on November 22, 2025, with a conversion service handling leftover MT messages for a time."],
+    rel: ["swift", "isomsgs", "iso"] },
+  { id: "isofaster", art: "isoart", q: "Does ISO 20022 make payments faster?",
+    k: ["faster", "speed", "iso 20022 faster", "benefits of iso 20022", "why iso 20022", "structured data", "structured address"],
+    a: ["Not by itself. Speed comes from the payment rail, not the message format: FedNow settles in seconds and a chain of correspondent banks can take days, even though both speak ISO 20022.", "What it does bring is richer, structured data: better sanctions and fraud screening with fewer false alarms, automatic matching of payments to invoices, and details that no longer get cut off as a payment moves between banks."],
+    rel: ["mxmt", "cardsiso", "instant"] },
+  { id: "cardsiso", art: "isoart", q: "Will card payments move to ISO 20022?",
+    k: ["cards iso 20022", "will cards move", "iso 8583 replaced", "iso 8583 future", "card messages iso 20022"],
+    a: ["Not soon. ISO 20022 does define card messages, used in parts of Europe, but the big networks' authorizations still run on ISO 8583: it's tiny and fast, the issuer already knows who owns the card, and terminals, ATMs and processors worldwide are built on it.", "What's happening instead is translation at the edges: payment companies offer modern web APIs and convert to ISO 8583 when talking to the networks."],
+    rel: ["iso8583", "iso", "isofaster"] },
+
   // ---- About ----
   { id: "about", art: "about", q: "Who writes Payments, Decoded?",
     k: ["who are you", "who wrote", "author", "ankit", "about", "who is this"],
@@ -425,11 +453,11 @@ const KB = [
     rel: ["topics", "blocks", "cdp"] },
   { id: "tools", art: "about", q: "What interactive tools do you have?",
     k: ["tools", "tool", "explorer", "explorers", "interactive", "simulator", "follow the money", "token explorer", "demo", "play"],
-    a: ["Two so far. Follow the Money walks one $50 purchase through credit, debit, prepaid, corporate and virtual cards and shows where the money sits at each step. The Token Explorer lets you add a card to a phone, tap to pay, try to steal the token and lose your phone, showing who can see your real card number.", "You'll find both under \"Try the tools\" on this page."],
+    a: ["Three so far. Follow the Money walks one $50 purchase through credit, debit, prepaid, corporate and virtual cards and shows where the money sits at each step. The Token Explorer lets you add a card to a phone, tap to pay, try to steal the token and lose your phone, showing who can see your real card number. The Message Decoder lets you tap through a card message and a bank message line by line.", "You'll find both under \"Try the tools\" on this page."],
     rel: ["fbo", "token", "funding"] },
   { id: "topics", art: "about", q: "What can I ask you?",
     k: ["help", "what can you do", "what can i ask", "topics", "hello", "hi", "hey", "articles", "list"],
-    a: ["I answer from four articles: Payments 101 (cards, checks, ACH, wires, RTP and FedNow, Zelle, SWIFT), Cards, End to End (who's involved, authorization to funding, fees, 3-D Secure, chargebacks), Credit, Debit and Prepaid (whose money it is, pooled accounts, Synapse, funding models) and Tap to Pay (wallets and tokens).", "There are also two interactive tools on this page: Follow the Money and the Token Explorer. Try one of the questions below, or type your own."],
+    a: ["I answer from five articles: Payments 101 (cards, checks, ACH, wires, RTP and FedNow, Zelle, SWIFT), Cards, End to End (who's involved, authorization to funding, fees, 3-D Secure, chargebacks), Credit, Debit and Prepaid (whose money it is, pooled accounts, Synapse, funding models), Tap to Pay (wallets and tokens) and ISO 8583 vs. ISO 20022 (the two languages of payment messages).", "There are also three interactive tools on this page: Follow the Money, the Token Explorer and the Message Decoder. Try one of the questions below, or type your own."],
     rel: ["blocks", "lifecycle", "tools"] }
 ];
 
